@@ -17,6 +17,7 @@ LIMITS = int(os.environ.get('LIMITS', 3))
 CAIYUN_TOKEN = os.environ.get("CAIYUN_TOKEN", None)
 FEISHU_URL = os.environ.get("FEISHU_URL", None)
 
+
 def translate(source, direction='en2zh', CAIYUN_TOKEN=CAIYUN_TOKEN):
     url = "http://api.interpreter.caiyunai.com/v1/translator"
 
@@ -32,10 +33,12 @@ def translate(source, direction='en2zh', CAIYUN_TOKEN=CAIYUN_TOKEN):
         "x-authorization": "token " + CAIYUN_TOKEN,
     }
     try:
-        response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+        response = requests.request(
+            "POST", url, data=json.dumps(payload), headers=headers)
         return json.loads(response.text)["target"]
     except:
         return []
+
 
 def get_yesterday():
     today = datetime.datetime.now()
@@ -70,7 +73,8 @@ def search_arxiv_papers(search_term, max_results=10):
         summary = entry.split('<summary>')[1].split('</summary>')[0].strip()
         url = entry.split('<id>')[1].split('</id>')[0].strip()
         pub_date = entry.split('<published>')[1].split('</published>')[0]
-        pub_date = datetime.datetime.strptime(pub_date, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d")
+        pub_date = datetime.datetime.strptime(
+            pub_date, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d")
 
         papers.append({
             'title': title,
@@ -79,11 +83,11 @@ def search_arxiv_papers(search_term, max_results=10):
             'summary': summary,
             'translated': '',
         })
-    
+
     print('[+] 开始翻译每日最新论文并缓存....')
 
     papers = save_and_translate(papers)
-    
+
     return papers
 
 
@@ -95,6 +99,7 @@ def send_wechat_message(title, content, SERVERCHAN_API_KEY):
     }
     requests.post(url, params=params)
 
+
 def send_feishu_message(title, content, url=FEISHU_URL):
     card_data = {
         "config": {
@@ -103,30 +108,30 @@ def send_feishu_message(title, content, url=FEISHU_URL):
         "header": {
             "template": "green",
             "title": {
-            "tag": "plain_text",
-            "content": title
+                "tag": "plain_text",
+                "content": title
             }
         },
         "elements": [
             {
-            "tag": "img",
-            "img_key": "img_v2_9781afeb-279d-4a05-8736-1dff05e19dbg",
-            "alt": {
-                "tag": "plain_text",
-                "content": ""
-            },
-            "mode": "fit_horizontal",
-            "preview": True
+                "tag": "img",
+                "img_key": "img_v2_9781afeb-279d-4a05-8736-1dff05e19dbg",
+                "alt": {
+                    "tag": "plain_text",
+                    "content": ""
+                },
+                "mode": "fit_horizontal",
+                "preview": True
             },
             {
-            "tag": "markdown",
-            "content": content
+                "tag": "markdown",
+                "content": content
             }
         ]
     }
     card = json.dumps(card_data)
-    body =json.dumps({"msg_type": "interactive","card":card})
-    headers = {"Content-Type":"application/json"}
+    body = json.dumps({"msg_type": "interactive", "card": card})
+    headers = {"Content-Type": "application/json"}
     requests.post(url=url, data=body, headers=headers)
 
 
@@ -134,8 +139,9 @@ def save_and_translate(papers, filename='arxiv.json'):
     with open(filename, 'r', encoding='utf-8') as f:
         results = json.load(f)
 
-    cached_title2idx = {result['title'].lower():i for i, result in enumerate(results)}
-    
+    cached_title2idx = {result['title'].lower(
+    ): i for i, result in enumerate(results)}
+
     untranslated_papers = []
     translated_papers = []
     for paper in papers:
@@ -146,7 +152,7 @@ def save_and_translate(papers, filename='arxiv.json'):
             )
         else:
             untranslated_papers.append(paper)
-    
+
     source = []
     for paper in untranslated_papers:
         source.append(paper['summary'])
@@ -154,17 +160,18 @@ def save_and_translate(papers, filename='arxiv.json'):
     if len(target) == len(untranslated_papers):
         for i in range(len(untranslated_papers)):
             untranslated_papers[i]['translated'] = target[i]
-    
+
     results.extend(untranslated_papers)
 
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=4, ensure_ascii=False)
 
-    print(f'[+] 总检索条数: {len(papers)} | 命中缓存: {len(translated_papers)} | 实际返回: {len(untranslated_papers)}....')
+    print(
+        f'[+] 总检索条数: {len(papers)} | 命中缓存: {len(translated_papers)} | 实际返回: {len(untranslated_papers)}....')
 
-    return untranslated_papers # 只需要发送缓存中没有的
+    return untranslated_papers  # 只需要发送缓存中没有的
 
-        
+
 def cronjob():
 
     if SERVERCHAN_API_KEY is None:
@@ -179,14 +186,13 @@ def cronjob():
     papers = search_arxiv_papers(QUERY, LIMITS)
 
     if papers == []:
-        
+
         push_title = f'Arxiv:{QUERY}[X]@{today}'
         send_wechat_message('', '[WARN] NO UPDATE TODAY!', SERVERCHAN_API_KEY)
 
         print('[+] 每日推送任务执行结束')
 
         return True
-        
 
     print('[+] 开始推送每日最新论文....')
 
@@ -201,7 +207,7 @@ def cronjob():
         yesterday = get_yesterday()
 
         if pub_date == yesterday:
-            msg_title = f'[Newest]{title}' 
+            msg_title = f'[Newest]{title}'
         else:
             msg_title = f'{title}'
 
@@ -213,8 +219,8 @@ def cronjob():
         push_title = f'Arxiv:{QUERY}[{ii}]@{today}'
         msg_content = f"[{msg_title}]({url})\n\n{msg_pub_date}\n\n{msg_url}\n\n{msg_translated}\n\n{msg_summary}\n\n"
 
-        # send_wechat_message(push_title, msg_content, SERVERCHAN_API_KEY)
-        send_feishu_message(push_title, msg_content, FEISHU_URL)
+        send_wechat_message(push_title, msg_content, SERVERCHAN_API_KEY)
+        # send_feishu_message(push_title, msg_content, FEISHU_URL)
 
         time.sleep(12)
 
@@ -225,6 +231,3 @@ def cronjob():
 
 if __name__ == '__main__':
     cronjob()
-
-
-
